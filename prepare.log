@@ -1,0 +1,21 @@
+Cache directory: /home/fvalade/.cache/autoresearch
+
+Data: downloading 11 shards (0 already exist)...
+  Downloaded shard_00001.parquet
+  Downloaded shard_00002.parquet
+  Downloaded shard_00004.parquet
+  Downloaded shard_00006.parquet
+  Downloaded shard_00000.parquet
+  Downloaded shard_00003.parquet
+  Downloaded shard_06542.parquet
+  Downloaded shard_00007.parquet
+  Downloaded shard_00008.parquet
+Data: 11/11 shards ready at /home/fvalade/.cache/autoresearch/data
+
+Tokenizer: training BPE tokenizer...
+Tokenizer: trained in 57.3s, saved to /home/fvalade/.cache/autoresearch/tokenizer/tokenizer.pkl
+Tokenizer: building token_bytes lookup...
+Tokenizer: saved token_bytes to /home/fvalade/.cache/autoresearch/tokenizer/token_bytes.pt
+Tokenizer: sanity check passed (vocab_size=8192)
+
+Done! Ready to train.

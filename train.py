@@ -103,10 +103,19 @@ class AttentionBackend:
             k = k.repeat_interleave(repeat, dim=1)
             v = v.repeat_interleave(repeat, dim=1)
 
-        attn_mask = None
-        if causal:
+        # Check if we actually need a window mask (short window < seq_len)
+        need_window_mask = False
+        if window_size is not None:
+            win = window_size[0] if isinstance(window_size, tuple) else int(window_size)
+            if 0 < win < q.size(-2):
+                need_window_mask = True
+        if causal and need_window_mask:
             attn_mask = self._build_additive_mask(q.size(-2), q.device, window_size)
-        y = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.0, is_causal=False)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=0.0, is_causal=False)
+        elif causal:
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=True)
+        else:
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         return y.transpose(1, 2).contiguous()  # [B, T, H, D]
 
 
@@ -487,7 +496,7 @@ def muon_step_fused(stacked_grads, stacked_params, momentum_buffer, second_momen
     momentum = momentum_t.to(stacked_grads.dtype)
     momentum_buffer.lerp_(stacked_grads, 1 - momentum)
     g = stacked_grads.lerp_(momentum_buffer, momentum)
-    X = g.to(torch.bfloat16 if RUNTIME["amp_dtype"] == torch.bfloat16 else torch.float16)
+    X = g.to(torch.float32)  # fp16 overflows in Newton-Schulz on V100; use fp32
     X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.02 + 1e-6)
     if g.size(-2) > g.size(-1):
         for a, b, c in polar_express_coeffs[:ns_steps]:
@@ -592,7 +601,7 @@ class MuonAdamW(torch.optim.Optimizer):
 
 # Model architecture
 ARCHITECTURE_MODE = "standard"   # standard | shared_block | recurrent
-ASPECT_RATIO = 48                 # model_dim ~= depth * ASPECT_RATIO
+ASPECT_RATIO = 64                 # model_dim ~= depth * ASPECT_RATIO
 HEAD_DIM = 64                     # smaller head dim is more V100-friendly
 WINDOW_PATTERN = "L"             # V100-friendly default
 NUM_UNROLL_STEPS = 6              # execution depth for shared / recurrent modes
@@ -611,13 +620,13 @@ MATRIX_LR = 0.04
 SCALAR_LR = 0.5
 WEIGHT_DECAY = 0.2
 ADAM_BETAS = (0.8, 0.95)
-WARMUP_RATIO = 0.0
+WARMUP_RATIO = 0.1
 WARMDOWN_RATIO = 0.5
 FINAL_LR_FRAC = 0.0
 
 # Model size
-DEPTH = 6
-DEVICE_BATCH_SIZE = 16
+DEPTH = 8
+DEVICE_BATCH_SIZE = 4
 
 # ---------------------------------------------------------------------------
 # Setup: tokenizer, model, optimizer, dataloader
@@ -661,9 +670,7 @@ def build_model_config(depth):
 config = build_model_config(DEPTH)
 print(f"Model config: {asdict(config)}")
 
-with torch.device("meta"):
-    model = GPT(config)
-model.to_empty(device=DEVICE)
+model = GPT(config).to(DEVICE)
 model.init_weights()
 
 param_counts = model.num_scaling_params()
@@ -747,8 +754,9 @@ while True:
     model.zero_grad(set_to_none=True)
 
     train_loss_f = train_loss.item()
+    print(f"\nDEBUG step={step} train_loss={train_loss_f}", flush=True)
     if not math.isfinite(train_loss_f) or train_loss_f > 100:
-        print("FAIL")
+        print(f"FAIL (loss={train_loss_f})")
         raise SystemExit(1)
 
     torch.cuda.synchronize()
