@@ -754,9 +754,8 @@ while True:
     model.zero_grad(set_to_none=True)
 
     train_loss_f = train_loss.item()
-    print(f"\nDEBUG step={step} train_loss={train_loss_f}", flush=True)
     if not math.isfinite(train_loss_f) or train_loss_f > 100:
-        print(f"FAIL (loss={train_loss_f})")
+        print("FAIL")
         raise SystemExit(1)
 
     torch.cuda.synchronize()
