@@ -604,7 +604,7 @@ ARCHITECTURE_MODE = "shared_block"   # standard | shared_block | recurrent
 ASPECT_RATIO = 64                 # model_dim ~= depth * ASPECT_RATIO
 HEAD_DIM = 64                     # smaller head dim is more V100-friendly
 WINDOW_PATTERN = "L"             # V100-friendly default
-NUM_UNROLL_STEPS = 80              # execution depth for shared / recurrent modes
+NUM_UNROLL_STEPS = 96              # execution depth for shared / recurrent modes
 NUM_SHARED_BLOCKS = 1             # unique blocks when sharing
 USE_DEPTH_EMBEDDING = True
 USE_RECURRENT_STATE = False
