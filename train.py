@@ -189,6 +189,7 @@ class AttentionCore(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         q = norm(q)
         k = norm(k)
+        v = norm(v)
         return ATTN_BACKEND.run(q, k, v, causal=True, window_size=window_size)
 
 
