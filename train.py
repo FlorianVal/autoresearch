@@ -603,7 +603,7 @@ class MuonAdamW(torch.optim.Optimizer):
 ARCHITECTURE_MODE = "shared_block"   # standard | shared_block | recurrent
 ASPECT_RATIO = 64                 # model_dim ~= depth * ASPECT_RATIO
 HEAD_DIM = 64                     # smaller head dim is more V100-friendly
-WINDOW_PATTERN = "LS"            # alternating full + half-window attention
+WINDOW_PATTERN = "LLLS"          # 3 global + 1 local block per cycle
 NUM_UNROLL_STEPS = 80              # execution depth for shared / recurrent modes
 NUM_SHARED_BLOCKS = 4             # unique blocks when sharing
 USE_DEPTH_EMBEDDING = True
