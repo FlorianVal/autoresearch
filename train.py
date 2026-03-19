@@ -189,7 +189,6 @@ class AttentionCore(nn.Module):
         k = apply_rotary_emb(k, cos, sin)
         q = norm(q)
         k = norm(k)
-        v = norm(v)
         return ATTN_BACKEND.run(q, k, v, causal=True, window_size=window_size)
 
 
@@ -282,12 +281,15 @@ class SharedBlockStack(nn.Module):
         self.attention_every = max(1, config.attention_every)
         self.effective_depth = config.num_unroll_steps
         self.unique_blocks = n_shared
+        self.input_scale = nn.Parameter(torch.zeros(1))  # learnable input injection scale
 
     def forward(self, x, cos_sin, step_embed=None, state=None):
+        x0 = x  # save initial embedding for injection
         for step in range(self.num_unroll_steps):
             block = self.blocks[step % len(self.blocks)]
             if self.depth_embed is not None:
                 x = x + self.depth_embed.weight[step].view(1, 1, -1)
+            x = x + self.input_scale * x0  # anchor to initial embedding
             run_attention = (step % self.attention_every) == 0 or step == self.num_unroll_steps - 1
             window = self.window_sizes[min(step, len(self.window_sizes) - 1)]
             x = block(x, cos_sin, window, run_attention=run_attention)
@@ -604,9 +606,9 @@ class MuonAdamW(torch.optim.Optimizer):
 ARCHITECTURE_MODE = "shared_block"   # standard | shared_block | recurrent
 ASPECT_RATIO = 64                 # model_dim ~= depth * ASPECT_RATIO
 HEAD_DIM = 64                     # smaller head dim is more V100-friendly
-WINDOW_PATTERN = "LLLLS"         # 4 global + 1 local block per cycle (5-block permanent specialization)
+WINDOW_PATTERN = "LLLS"          # 3 global + 1 local block per cycle
 NUM_UNROLL_STEPS = 80              # execution depth for shared / recurrent modes
-NUM_SHARED_BLOCKS = 5             # unique blocks when sharing (80/5=16 reps each)
+NUM_SHARED_BLOCKS = 4             # unique blocks when sharing
 USE_DEPTH_EMBEDDING = True
 USE_RECURRENT_STATE = False
 STATE_DIM = 128
